@@ -1,0 +1,23 @@
+[
+    {
+        "email": "jabidandresjimenezserrano@gmail.com",
+        "email_format_is_valid": true,
+        "uses_catch_all": false,
+        "connection_succeeded": true,
+        "inbox_exists": true
+    },
+    {
+        "email": "joseluisparra09@gmail.com",
+        "email_format_is_valid": true,
+        "uses_catch_all": false,
+        "connection_succeeded": true,
+        "inbox_exists": true
+    },
+    {
+        "email": "lorenzoramos271948@gmail.com",
+        "email_format_is_valid": true,
+        "uses_catch_all": false,
+        "connection_succeeded": true,
+        "inbox_exists": false
+    }
+]

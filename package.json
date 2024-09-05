@@ -1,0 +1,19 @@
+{
+  "name": "email-validator",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Node App for validating emails",
+  "main": "index.js",
+  "scripts": {
+    "server": "nodemon src/server.js"
+  },
+  "author": "jabid",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "dns": "^0.2.2",
+    "express": "^4.19.2",
+    "net": "^1.0.2",
+    "nodemon": "^3.1.4"
+  }
+}
