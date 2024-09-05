@@ -20,7 +20,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
     let currentStageName = SMTPStageNames.CHECK_CONNECTION_ESTABLISHED;
     let hasQuit = false;
 
-    socket.setTimeout(10000); // 10 second timeout
+    socket.setTimeout(30000); // 10 second timeout
 
     socket.on("timeout", () => {
       console.error("Connection timed out");
@@ -59,7 +59,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
         case SMTPStageNames.SEND_EHLO: {
           const expectedReplyCode = "250";
           const nextStageName = SMTPStageNames.SEND_MAIL_FROM;
-          const command = `MAIL FROM:<name@example.org>\r\n`;
+          const command = `MAIL FROM:<noreply@gmail.com>\r\n`;
 
           if (!response.startsWith(expectedReplyCode)) {
             console.error("Unexpected response:", response);
@@ -85,7 +85,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
         case SMTPStageNames.SEND_RECIPIENT_TO: {
           if (response.startsWith("250")) {
             result.inbox_exists = true;
-          } else if (response.startsWith("550")) {
+          } else if (response.startsWith("550") || response.startsWith("553")) {
             result.inbox_exists = false;
             console.log(`Email ${emailInbox} was rejected, not a catch-all.`);
           } else {
@@ -99,6 +99,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
 
     socket.on("error", (error) => {
       console.error("Socket error:", error);
+      reject(error);// Reject the promise on socket error
       closeConnection();
     });
 

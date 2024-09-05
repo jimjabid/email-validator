@@ -3,9 +3,6 @@ import { resolveMxRecords } from "../services/resolveMxRecords.js";
 import { testInboxOnServer } from "../services/testInboxOnServer.js";
 import { randomBytes } from "crypto";
 
-
-// ... keep the existing validateEmail function ...
-
 export const validateMultipleEmails = async (req, res) => {
   try {
     if (!Array.isArray(req.body.emails)) {
@@ -18,21 +15,7 @@ export const validateMultipleEmails = async (req, res) => {
       return res.status(400).json({ error: "maximum 100 emails allowed per request" });
     }
 
-    const results = await Promise.all(emails.map(async (email) => {
-      try {
-        return await validateSingleEmail(email);
-      } catch (error) {
-        console.error(`Error validating email ${email}:`, error);
-        return {
-          email,
-          error: "Failed to validate email",
-          email_format_is_valid: false,
-          uses_catch_all: false,
-          connection_succeeded: false,
-          inbox_exists: false
-        };
-      }
-    }));
+    const results = await Promise.all(emails.map(validateSingleEmail));
 
     res.json(results);
   } catch (error) {
@@ -42,77 +25,69 @@ export const validateMultipleEmails = async (req, res) => {
 };
 
 async function validateSingleEmail(email) {
-  const emailFormatIsvalid = verifyEmailFormat(email);
+  try {
+    const emailFormatIsValid = verifyEmailFormat(email);
 
-  if (!emailFormatIsvalid) {
+    if (!emailFormatIsValid) {
+      return createEmailResult(email, false);
+    }
+
+    const [, domain] = email.split("@");
+    const mxRecords = await resolveMxRecords(domain);
+    const sortedMxRecords = mxRecords.sort((a, b) => a.priority - b.priority);
+
+    const smtpResult = await testSmtpConnection(sortedMxRecords, email);
+
+    if (!smtpResult || !smtpResult.connection_succeeded) {
+      return createEmailResult(email, emailFormatIsValid);
+    }
+
+    const usesCatchAll = await testCatchAll(sortedMxRecords[0].exchange, domain);
+
     return {
       email,
-      email_format_is_valid: false,
-      uses_catch_all: false,
-      connection_succeeded: false,
-      inbox_exists: false
+      email_format_is_valid: emailFormatIsValid,
+      uses_catch_all: usesCatchAll,
+      ...smtpResult
     };
+  } catch (error) {
+    console.error(`Error validating email ${email}:`, error);
+    return createEmailResult(email, false, "Failed to validate email");
   }
+}
 
-  const [, domain] = email.split("@");
-
-  const mxRecords = await resolveMxRecords(domain);
-  const sortedMxRecords = mxRecords.sort((a, b) => a.priority - b.priority);
-
-  let smtpResult;
-  let hostIndex = 0;
-
-  while (hostIndex < sortedMxRecords.length) {
+async function testSmtpConnection(mxRecords, email) {
+  for (const record of mxRecords) {
     try {
-      smtpResult = await testInboxOnServer(
-        sortedMxRecords[hostIndex].exchange,
-        email
-      );
-
-      if (!smtpResult.connection_succeeded) {
-        hostIndex++;
-      } else {
-        break;
+      const result = await testInboxOnServer(record.exchange, email);
+      if (result.connection_succeeded) {
+        return result;
       }
     } catch (error) {
-      console.error(`Error testing inbox for ${email}:`, error);
-      hostIndex++;
+      console.error(`Error testing inbox for ${email} on ${record.exchange}:`, error);
     }
   }
+  return null;
+}
 
-  if (!smtpResult || !smtpResult.connection_succeeded) {
-    return {
-      email,
-      email_format_is_valid: emailFormatIsvalid,
-      uses_catch_all: false,
-      connection_succeeded: false,
-      inbox_exists: false
-    };
-  }
-
-  let usesCatchAll = false;
-
+async function testCatchAll(exchange, domain) {
   try {
     const randomEmail = `${randomBytes(20).toString("hex")}@${domain}`;
-    const testCatchAll = await testInboxOnServer(
-      sortedMxRecords[hostIndex].exchange,
-      randomEmail
-    );
-    
-    usesCatchAll = testCatchAll.inbox_exists;
-    
-    if (!usesCatchAll) {
-      console.log(`Domain ${domain} does not use catch-all.`);
-    }
+    const testCatchAll = await testInboxOnServer(exchange, randomEmail);
+    return testCatchAll.inbox_exists;
   } catch (error) {
-    console.error(`Error during catch-all test for ${email}:`, error);
-    usesCatchAll = false;
+    console.error(`Error during catch-all test for ${domain}:`, error);
+    return false;
   }
+}
 
+function createEmailResult(email, formatValid, errorMessage = null) {
   return {
     email,
-    email_format_is_valid: emailFormatIsvalid,
-    uses_catch_all: usesCatchAll,
-    ...smtpResult
+    error: errorMessage,
+    email_format_is_valid: formatValid,
+    uses_catch_all: false,
+    connection_succeeded: false,
+    inbox_exists: false
   };
 }
