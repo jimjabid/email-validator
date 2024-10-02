@@ -21,11 +21,11 @@ export const TTestInboxResult = {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getVerifiableDomain = async () => {
-  const customDomain = "tuagentepersonalizado.com";
+  const customDomain = process.env.CUSTOM_DOMAIN;
 
   try {
     await dns.promises.lookup(customDomain);
-    console.log(`Domain ${customDomain} is resolvable.`);
+
     return customDomain;
   } catch (error) {
     console.error(`Error resolving ${customDomain}: ${error.message}`);
@@ -78,7 +78,7 @@ const connectAndTest = (
     let currentStageName = SMTPStageNames.CHECK_CONNECTION_ESTABLISHED;
     let hasQuit = false;
 
-    socket.setTimeout(30000);
+    socket.setTimeout(10000);
 
     socket.on("timeout", () => {
       console.error("Connection timed out");
