@@ -43,7 +43,7 @@ async function validateSingleEmail(email) {
     const smtpResult = await testSmtpConnection(sortedMxRecords, email);
 
     if (!smtpResult || !smtpResult.connection_succeeded) {
-      return createEmailResult(email, emailFormatIsValid, "Failed to establish SMTP connection");
+      return res.status(500).json({ error: smtpResult.error || "Failed to connect to SMTP server" });
     }
 
     const usesCatchAll = await testCatchAll(sortedMxRecords[0].exchange, domain);
@@ -52,12 +52,25 @@ async function validateSingleEmail(email) {
       email,
       email_format_is_valid: emailFormatIsValid,
       uses_catch_all: usesCatchAll,
+      protocol: smtpResult.protocol, // New field
       ...smtpResult
     };
   } catch (error) {
     console.error(`Error validating email ${email}:`, error);
     return createEmailResult(email, false, "Failed to validate email: " + error.message);
   }
+}
+
+function createEmailResult(email, formatValid, errorMessage = null) {
+  return {
+    email,
+    error: errorMessage,
+    email_format_is_valid: formatValid,
+    uses_catch_all: false,
+    connection_succeeded: false,
+    inbox_exists: false,
+    protocol: null // New field
+  };
 }
 
 async function testSmtpConnection(mxRecords, email) {
@@ -83,15 +96,4 @@ async function testCatchAll(exchange, domain) {
     console.error(`Error during catch-all test for ${domain}:`, error);
     return false;
   }
-}
-
-function createEmailResult(email, formatValid, errorMessage = null) {
-  return {
-    email,
-    error: errorMessage,
-    email_format_is_valid: formatValid,
-    uses_catch_all: false,
-    connection_succeeded: false,
-    inbox_exists: false
-  };
 }
