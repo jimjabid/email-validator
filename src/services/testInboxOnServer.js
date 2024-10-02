@@ -3,6 +3,7 @@ import net from "net";
 const SMTPStageNames = {
   CHECK_CONNECTION_ESTABLISHED: "CHECK_CONNECTION_ESTABLISHED",
   SEND_EHLO: "SEND_EHLO",
+  SEND_HELO: "SEND_HELO",
   SEND_MAIL_FROM: "SEND_MAIL_FROM",
   SEND_RECIPIENT_TO: "SEND_RECIPIENT_TO",
   CLOSING: "CLOSING",
@@ -20,7 +21,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
     let currentStageName = SMTPStageNames.CHECK_CONNECTION_ESTABLISHED;
     let hasQuit = false;
 
-    socket.setTimeout(30000); // 10 second timeout
+    socket.setTimeout(30000); // 30 second timeout
 
     socket.on("timeout", () => {
       console.error("Connection timed out");
@@ -57,16 +58,27 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
           break;
         }
         case SMTPStageNames.SEND_EHLO: {
-          const expectedReplyCode = "250";
-          const nextStageName = SMTPStageNames.SEND_MAIL_FROM;
-          const command = `MAIL FROM:<noreply@gmail.com>\r\n`;
-
-          if (!response.startsWith(expectedReplyCode)) {
-            console.error("Unexpected response:", response);
+          if (response.startsWith("250")) {
+            const nextStageName = SMTPStageNames.SEND_MAIL_FROM;
+            const command = `MAIL FROM:<noreply@gmail.com>\r\n`;
+            sendCommand(command, nextStageName);
+          } else {
+            console.log("EHLO failed, trying HELO");
+            const nextStageName = SMTPStageNames.SEND_HELO;
+            const command = `HELO mail.example.org\r\n`;
+            sendCommand(command, nextStageName);
+          }
+          break;
+        }
+        case SMTPStageNames.SEND_HELO: {
+          if (response.startsWith("250")) {
+            const nextStageName = SMTPStageNames.SEND_MAIL_FROM;
+            const command = `MAIL FROM:<noreply@gmail.com>\r\n`;
+            sendCommand(command, nextStageName);
+          } else {
+            console.error("Both EHLO and HELO failed:", response);
             return closeConnection();
           }
-
-          sendCommand(command, nextStageName);
           break;
         }
         case SMTPStageNames.SEND_MAIL_FROM: {
@@ -99,7 +111,7 @@ export const testInboxOnServer = async (smtpHostName, emailInbox) => {
 
     socket.on("error", (error) => {
       console.error("Socket error:", error);
-      reject(error);// Reject the promise on socket error
+      reject(error);
       closeConnection();
     });
 

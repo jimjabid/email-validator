@@ -36,10 +36,14 @@ async function validateSingleEmail(email) {
     const mxRecords = await resolveMxRecords(domain);
     const sortedMxRecords = mxRecords.sort((a, b) => a.priority - b.priority);
 
+    if (sortedMxRecords.length === 0) {
+      return createEmailResult(email, emailFormatIsValid, "No MX records found");
+    }
+
     const smtpResult = await testSmtpConnection(sortedMxRecords, email);
 
     if (!smtpResult || !smtpResult.connection_succeeded) {
-      return createEmailResult(email, emailFormatIsValid);
+      return createEmailResult(email, emailFormatIsValid, "Failed to establish SMTP connection");
     }
 
     const usesCatchAll = await testCatchAll(sortedMxRecords[0].exchange, domain);
@@ -52,7 +56,7 @@ async function validateSingleEmail(email) {
     };
   } catch (error) {
     console.error(`Error validating email ${email}:`, error);
-    return createEmailResult(email, false, "Failed to validate email");
+    return createEmailResult(email, false, "Failed to validate email: " + error.message);
   }
 }
 
